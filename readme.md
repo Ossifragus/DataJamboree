@@ -30,7 +30,7 @@ load data and rename columns
 ```julia
 julia> @time dat = CSV.read("nyc311_011523-012123_by022023.csv", DataFrame,
                       dateformat="m/d/y H:M:S p")
-  0.355489 seconds (1.61 M allocations: 115.699 MiB)
+  0.175945 seconds (1.81 M allocations: 125.091 MiB)
 54469×41 DataFrame
    Row │ Unique Key  Created Date         Closed Date          Agency   Agency ⋯
        │ Int64       DateTime             DateTime?            String7  String ⋯
@@ -54,7 +54,7 @@ julia> @time dat = CSV.read("nyc311_011523-012123_by022023.csv", DataFrame,
                                                37 columns and 54454 rows omitted
 
 julia> @time rename!(x -> lowercase(replace(x, " " => "_")), dat)
-  0.034048 seconds (28.05 k allocations: 1.861 MiB)
+  0.037280 seconds (25.38 k allocations: 1.682 MiB, 99.43% compilation time)
 54469×41 DataFrame
    Row │ unique_key  created_date         closed_date          agency   agency ⋯
        │ Int64       DateTime             DateTime?            String7  String ⋯
@@ -245,25 +245,26 @@ julia> dat1 = dat[!, [1:4; 6:10; 25:26; 39:40]]
 
 julia> ds1 = describe(dat1)
 13×7 DataFrame
- Row │ variable          mean       min                      median            ⋯
-     │ Symbol            Union…     Any                      Any               ⋯
+ Row │ variable          mean       min                      median     max    ⋯
+     │ Symbol            Union…     Any                      Union…     Any    ⋯
 ─────┼──────────────────────────────────────────────────────────────────────────
-   1 │ unique_key        5.65614e7  56524167                 5.65613e7         ⋯
-   2 │ created_date                 2023-01-15T00:00:00      2023-01-18T13:20:
-   3 │ closed_date                  2022-01-12T10:06:00      2023-01-19T15:05:
-   4 │ agency                       DCA
-   5 │ complaint_type               AHV Inspection Unit                        ⋯
-   6 │ descriptor                   1 or 2
-   7 │ location_type                1-2 Family Dwelling
-   8 │ incident_zip      10807.1    10000                    11201.0
-   9 │ incident_address             -999 FURMANVILLE AVENUE                    ⋯
-  10 │ bbl               2.6957e9   0                        3.01604e9
-  11 │ borough                      BRONX
-  12 │ latitude          40.7367    40.4989                  40.7309
-  13 │ longitude         -73.9248   -74.2525                 -73.9281          ⋯
-                                                               4 columns omitted
+   1 │ unique_key        5.65614e7  56524167                 5.65613e7  566356 ⋯
+   2 │ created_date                 2023-01-15T00:00:00                 2023-0
+   3 │ closed_date                  2022-01-12T10:06:00                 2023-0
+   4 │ agency                       DCA                                 TLC
+   5 │ complaint_type               AHV Inspection Unit                 ZTESTI ⋯
+   6 │ descriptor                   1 or 2                              unknow
+   7 │ location_type                1-2 Family Dwelling                 Yard
+   8 │ incident_zip      10807.1    10000                    11201.0    12345
+   9 │ incident_address             -999 FURMANVILLE AVENUE             YELLOW ⋯
+  10 │ bbl               2.6957e9   0                        3.01604e9  520042
+  11 │ borough                      BRONX                               Unspec
+  12 │ latitude          40.7367    40.4989                  40.7309    40.912
+  13 │ longitude         -73.9248   -74.2525                 -73.9281   -73.70 ⋯
+                                                               3 columns omitted
 
 julia> dat2 = dat1[isless.(dat1.created_date, dat1.closed_date), :]
+       # dat2 = filter(r -> isless(r.created_date, r.closed_date) ,dat1)
 52576×13 DataFrame
    Row │ unique_key  created_date         closed_date          agency   compla ⋯
        │ Int64       DateTime             DateTime?            String7  String ⋯
@@ -322,7 +323,6 @@ Geocoder.jl can be used as a geocoding client for Google Maps API and Open Stree
 
 ```julia
 julia> include("get_coordinates.jl")
-getCoordinates (generic function with 2 methods)
 
 julia> coor = geocode("28-07 JACKSON AVENUE, New York", osm_key, "osm")
 Dict{String, Any} with 2 entries:
@@ -469,6 +469,8 @@ julia> describe(dat3)[!,[1, end-1]]
   13 │ longitude               46
 
 julia> filter!(:closed_date => !ismissing, dat3)
+       
+       # using Dates
 21534×13 DataFrame
    Row │ unique_key  created_date         closed_date          agency   compla ⋯
        │ Int64       DateTime             DateTime?            String7  String ⋯
@@ -491,8 +493,9 @@ julia> filter!(:closed_date => !ismissing, dat3)
  21534 │   56590382  2023-01-22T00:00:00  2023-01-22T04:29:17  NYPD     Noise
                                                 9 columns and 21519 rows omitted
 
-julia> # using Dates
-       dat3.duration .= Dates.value.(dat3.closed_date .- dat3.created_date) ./ 60000
+julia> dat3.duration .= Dates.value.(dat3.closed_date .- dat3.created_date) ./ 60000
+       # passmissing(Dates.value)
+       # disallowmissing!(dat3, :duration)
 21534-element Vector{Float64}:
  157.2
  114.05
@@ -848,10 +851,10 @@ CondaPkg.add("python-Levenshtein")
 
 ```julia
 julia> uszipcode = pyimport("uszipcode")
-Python: <module 'uszipcode' from '/home/ossifragus/Dropbox/work/conference/20231104_DataJamboree/.CondaPkg/env/lib/python3.12/site-packages/uszipcode/__init__.py'>
+Python: <module 'uszipcode' from '/home/ossifragus/Dropbox/julia/courses/DataJamboree/.CondaPkg/env/lib/python3.12/site-packages/uszipcode/__init__.py'>
 
 julia> sr = uszipcode.SearchEngine()
-Python: <uszipcode.search.SearchEngine object at 0x7f154e728230>
+Python: <uszipcode.search.SearchEngine object at 0x7f7cbb72d850>
 
 julia> sr.by_zipcode("10001")
 Python: SimpleZipcode(zipcode='10001', zipcode_type='STANDARD', major_city='New York', post_office_city='New York, NY', common_city_list=['New York'], county='New York County', state='NY', lat=40.75, lng=-74.0, timezone='America/New_York', radius_in_miles=0.9090909090909091, area_code_list='718,917,347,646', population=21102, population_density=33959.0, land_area_in_sqmi=0.62, water_area_in_sqmi=0.0, housing_units=12476, occupied_housing_units=11031, median_home_value=650200, median_household_income=81671, bounds_west=-74.008621, bounds_east=-73.984076, bounds_north=40.759731, bounds_south=40.743451)
@@ -1030,26 +1033,26 @@ water_area    0.792161      0.271544      2.92    0.0035    0.259944      1.3243
 
 julia> p̂ = GLM.predict(lgst)
 20877-element Vector{Float64}:
- 0.31111966003556635
- 0.16506222680628777
- 0.3073776454912984
- 0.10351388965583477
- 0.07661270152179683
- 0.08760770837939703
- 0.19414361757765922
- 0.06187367866992861
- 0.19483019897093143
- 0.08697028138265056
+ 0.3111196600355672
+ 0.1650622268062843
+ 0.307377645491299
+ 0.1035138896558327
+ 0.07661270152179724
+ 0.08760770837939519
+ 0.1941436175776555
+ 0.06187367866992892
+ 0.1948301989709319
+ 0.08697028138264871
  ⋮
- 0.10352303880619618
- 0.08874324033414721
- 0.110739417202061
- 0.12481075944915418
- 0.14281041685941756
- 0.13956883926825323
- 0.10419732204978788
- 0.1803144647442237
- 0.27307904394615135
+ 0.10352303880619676
+ 0.08874324033414512
+ 0.1107394172020614
+ 0.12481075944915469
+ 0.14281041685941806
+ 0.1395688392682537
+ 0.10419732204978574
+ 0.18031446474422425
+ 0.27307904394614646
 
 julia> mean((p̂ .> 0.5) .== dat5.over3h) # accuracy
 0.8344589739905158
@@ -1066,7 +1069,7 @@ julia> function cal_auc(p, y)
 cal_auc (generic function with 1 method)
 
 julia> @time cal_auc(p̂, dat5.over3h)
-  0.220555 seconds (221.89 k allocations: 15.309 MiB)
+  0.137854 seconds (214.88 k allocations: 14.718 MiB, 68.03% compilation time)
 0.6663342965439752
 
 julia> using FLoops
@@ -1081,12 +1084,21 @@ julia> function cal_aucF(p, y)
        end
 cal_aucF (generic function with 1 method)
 
+julia> @time cal_aucF(p̂, dat5.over3h)
+  0.280798 seconds (625.57 k allocations: 42.133 MiB, 132.88% compilation time)
+0.6663342965439752
+```
+
+
+run a second time for better timeing
+
+```julia
 julia> @time cal_auc(p̂, dat5.over3h)
-  0.066229 seconds (11 allocations: 177.047 KiB)
+  0.043704 seconds (11 allocations: 177.047 KiB)
 0.6663342965439752
 
 julia> @time cal_aucF(p̂, dat5.over3h)
-  0.560019 seconds (644.01 k allocations: 43.124 MiB, 13.51% gc time, 16.31% compilation time)
+  0.004009 seconds (1.57 k allocations: 262.844 KiB)
 0.6663342965439752
 
 julia> using MLJ
@@ -1104,7 +1116,7 @@ julia> c = categorical(unique(y_cat))
 julia> ŷ = [UnivariateFinite(c, [1.0 - p, p]) for p in p̂];
 
 julia> @time auc(ŷ, y_cat)
-  0.012087 seconds (11 allocations: 652.750 KiB)
+  0.009821 seconds (11 allocations: 652.750 KiB)
 0.6663342965439752
 
 julia> rc = roc_curve(ŷ, y_cat);
@@ -1112,7 +1124,7 @@ julia> rc = roc_curve(ŷ, y_cat);
 julia> plt.plot(rc[1:2]..., color=:red, lw=3, label="glm", legend=:right,
                 xlab="False Positive", ylab="True Positive")
 ```
-![](figures/code_24_1.png)
+![](figures/code_25_1.png)
 
 
 - Repeat the analysis with another model (e.g., random forest; neural
@@ -1207,5 +1219,5 @@ julia> rc_xgb = roc_curve(ŷ_xgb, y_cat)
 
 julia> plt.plot!(rc_xgb[1:2]..., color=:blue, lw=3, label="xgboost")
 ```
-![](figures/code_25_1.png)
+![](figures/code_26_1.png)
 

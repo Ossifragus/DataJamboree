@@ -278,6 +278,9 @@ function cal_aucF(p, y)
     s / (n1*n0)
 end            
 
+@time cal_aucF(p̂, dat5.over3h)
+
+#' run a second time for better timeing
 @time cal_auc(p̂, dat5.over3h)
 @time cal_aucF(p̂, dat5.over3h)
 

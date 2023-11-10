@@ -26,5 +26,6 @@ Manifest.toml
 # specifics
 .CondaPkg/
 nyc311_011523-012123_by022023.csv
+nyc311.arrow
 get_coordinates.jl
 others/
